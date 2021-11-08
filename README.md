@@ -53,3 +53,33 @@ After executing the command to create the topic, details about the resource will
 }
 ```
 make note of endpoint.
+
+### 3. Get Keys of Topic
+You’ll also need one of the two access keys that were generated for authorization. To retrieve the keys, you can list the ones associated with the topic.
+```console
+az eventgrid topic key list --name HrApplicationTopic --resouce-group <resource-group-name>
+```
+
+### 4. Publishing an Event
+Before sending the first event, you need to understand the event schema that’s expected by the topic. Each event, regardless of if the publisher is an Azure resource or custom application, will adhere to the structure outlined in the following code.
+```javascript
+[
+  {
+    "topic": string,
+    "subject": string,   
+    "id": string,
+    "eventType": string,
+    "eventTime": string,
+    "data":{
+      object-unique-to-each-publisher
+    }
+  }
+]
+```
+<b>eventType</b> is a value used to uniquely identify the published event type. This property can be used by handlers wishing to subscribe only to specific event types, rather than all types.
+<b>subject</b> is a value, like eventType, that’s available to provide additional context about the event, with the option of also providing an additional filter to subscribers
+<b>data</b> is a publisher-defined bucket that’s simply an object that can contain one or more properties
+
+> To publish the event, you can use Postman (or a similar tool) to simulate the message coming from the application to the endpoint address. For authorization, you can add an item in the header called aeg-sas-key—it’s value is one of the access keys generated when the topic is created. The body of the request will contain the payload.
+
+> EventPublisher folder contains the console app to generate the Events.
