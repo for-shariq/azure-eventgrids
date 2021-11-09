@@ -51,6 +51,7 @@ namespace EventGridPublisher
 
             client.PublishEventsAsync(topicHostname, GetEventsList()).GetAwaiter().GetResult();
             Console.Write("Published events to Event Grid topic.");
+            
             Console.ReadLine();
         }
         static IList<EventGridEvent> GetEventsList()
