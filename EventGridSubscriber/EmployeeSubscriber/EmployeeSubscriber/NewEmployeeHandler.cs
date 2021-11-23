@@ -1,70 +1,70 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.EventGrid;
+using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Formatting;
+using System.Threading.Tasks;
 
 namespace EmployeeSubscriber
 {
     public static class NewEmployeeHandler
     {
-        public class GridEvent<T> where T : class
+        public class Employee
         {
-            public string Id { get; set; }
-            public string EventType { get; set; }
-            public string Subject { get; set; }
-            public DateTime EventTime { get; set; }
-            public T Data { get; set; }
-            public string Topic { get; set; }
+            public int Id { get; set; }
+            [JsonProperty(PropertyName = "name")]
+            public string Name { get; set; }           
+            public string Email { get; set; }
         }
 
         [FunctionName("newemployeehandler")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req, ILogger log)
         {
-            log.LogInformation("New Employee Handler Triggered");
+            log.LogInformation($"C# HTTP trigger function begun");
+            string response = string.Empty;
+            const string CustomTopicEvent = "https://hrapplicationtopic.eastus-1.eventgrid.azure.net/api/events";
 
-                string name = req.Query["name"];
+            string requestContent = await req.Content.ReadAsStringAsync();
+            log.LogInformation($"Received events: {requestContent}");
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            var gridEvent = JsonConvert.DeserializeObject<List<GridEvent<Dictionary<string, string>>>>(requestBody)    ;
+            EventGridSubscriber eventGridSubscriber = new EventGridSubscriber();
+            eventGridSubscriber.AddOrUpdateCustomEventMapping(CustomTopicEvent, typeof(Employee));
+            EventGridEvent[] eventGridEvents = eventGridSubscriber.DeserializeEventGridEvents(requestContent);
 
-            //Check to see if the event is available
-            if (gridEvent == null)
+            foreach (EventGridEvent eventGridEvent in eventGridEvents)
             {
-                return new BadRequestObjectResult(new { Message = $"Missing event details", Type = "Error" });
+                if (eventGridEvent.Data is SubscriptionValidationEventData)
+                {
+                    var eventData = (SubscriptionValidationEventData)eventGridEvent.Data;
+                    log.LogInformation($"Got SubscriptionValidation event data, validationCode: {eventData.ValidationCode},  validationUrl: {eventData.ValidationUrl}, topic: {eventGridEvent.Topic}, eventType: { eventGridEvent.EventType}");
+                    // Do any additional validation (as required) such as validating that the Azure resource ID of the topic matches
+                    // the expected topic and then return back the below response
+                    var responseData = new SubscriptionValidationResponse()
+                    {
+                        ValidationResponse = eventData.ValidationCode
+                    };
+                    ///log.LogInformation($"Echo response: {JsonConvert.SerializeObject(req.CreateResponse(HttpStatusCode.OK, responseData))}");
+                    //return req.CreateResponse(HttpStatusCode.OK, responseData);
+                    return req.CreateResponse(HttpStatusCode.OK, new { validationResponse = responseData.ValidationResponse },
+                 new JsonMediaTypeFormatter());
+                }
+                else if (eventGridEvent.Data is StorageBlobCreatedEventData)
+                {
+                    var eventData = (StorageBlobCreatedEventData)eventGridEvent.Data;
+                    log.LogInformation($"Got BlobCreated event data, blob URI {eventData.Url}");
+                }
+                else if (eventGridEvent.Data is Employee)
+                {
+                    var eventData = (Employee)eventGridEvent.Data;
+                    log.LogInformation($"Got Employee event data {eventData.Name}");
+                }
             }
 
-            // Check the header to identify the type of request
-            // from Event Grid. A subscription validation request
-            // must echo back the validation code.
-
-            req.Headers.TryGetValue("Aeg-Event-Type", out var gridEventType);
-            var grdEvent = gridEvent[0];
-            if (gridEventType == "SubscriptionValidation")
-            {
-                var code = grdEvent.Data["validationCode"];
-                return new OkObjectResult(new { validationResponse = code, Message = $"Validation Event", Type = "ValidationCode" });
-            }
-            else if (gridEventType == "Notification")
-            {
-                // Pseudo code: place message into a queue
-                // for further processing.
-                return new OkObjectResult(new { Message = $"New Employee added to queue", Type = "Success" });
-            }
-            else
-            {
-                return new BadRequestObjectResult($"Unknown request type");
-            }
-
-            //return new BadRequestObjectResult($"Unknown request type");
+            return req.CreateResponse(HttpStatusCode.OK, response);
         }
     }
 }

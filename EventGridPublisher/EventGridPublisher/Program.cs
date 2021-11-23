@@ -71,7 +71,7 @@ namespace EventGridPublisher
                         Email = "forshariq@gmail.com"
                     },
                     EventTime = DateTime.Now,
-                    Subject = "Department/Technical",
+                    Subject = "Department/Engineering",
                     DataVersion = "2.0"
                 });
             }

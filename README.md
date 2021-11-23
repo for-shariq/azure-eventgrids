@@ -83,3 +83,27 @@ Before sending the first event, you need to understand the event schema that’s
 > To publish the event, you can use Postman (or a similar tool) to simulate the message coming from the application to the endpoint address. For authorization, you can add an item in the header called aeg-sas-key—it’s value is one of the access keys generated when the topic is created. The body of the request will contain the payload.
 
 > EventPublisher folder contains the console app to generate the Events.
+
+### 5. Event Subscriber - An Azure Function
+Our first handler wil lbe an Azure Function. I want to specifically subscribe to events for recently added employees. Additionally, and just as important, this handler must only be invoked for employees that belong to the engineering department.
+> Please refer to EmployeeSubscriber > NewEmployeeHandler.cs file to check the code of Azure Function
+Event Grid will send to its subscribers two types of requests—SubscriptionValidation and Notification—that you can identify by inspecting a value from the header. The validation request is important to ensure that all subscribers are added explicitly.  Validation requests can also be identified by their event type: Microsoft.EventGrid.SubscriptionValidationEvent. If the event type is Notification, then I proceed with the implementation of the business logic. This defensive programming approach is highly recommended when exposing endpoints to other services.
+
+```c#
+var code = gridEvent.Data["validationCode"];
+return req.CreateResponse(HttpStatusCode.OK,
+  new { validationResponse = code });
+```
+### 6. Create Event Subscription in Event Grid
+
+```console
+az eventgrid event-subscription create --name EmployeeAdded-Subscription \
+ --source-resource-id /subscriptions/{SubID}/resourceGroups/{RG}/providers/Microsoft.EventGrid/topics/topic1 \
+ --endpoint https://<function-name>.azurewebsites.net/api/<url> \
+ --subject-ends-with Engineering \
+ --included-event-types EmployeeAdded EmployeeDeleted
+```
+
+### 7. Handling Events: Logic App and WebHook
+The next event subscription is a Logic App. Like the Azure Function example, it’s only interested in the added employee event type. It won’t leverage the prefix or suffix filters, because I want to send a message to employees from all departments. 
+The Complete version of Logic app is shown below:
