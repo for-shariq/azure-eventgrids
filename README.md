@@ -107,3 +107,4 @@ az eventgrid event-subscription create --name EmployeeAdded-Subscription \
 ### 7. Handling Events: Logic App and WebHook
 The next event subscription is a Logic App. Like the Azure Function example, it’s only interested in the added employee event type. It won’t leverage the prefix or suffix filters, because I want to send a message to employees from all departments. 
 The Complete version of Logic app is shown below:
+![alt text](https://github.com/for-shariq/azure-eventgrids/blob/main/Docs/LogicApp.png?raw=true)
